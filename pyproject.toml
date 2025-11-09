@@ -6,4 +6,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "cmake>=4.1.2",
+    "transformers>=4.57.1",
+    "triton>=3.5.0",
 ]

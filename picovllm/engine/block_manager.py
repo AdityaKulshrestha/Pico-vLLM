@@ -32,12 +32,11 @@ class BlockManager:
         self.free_block_ids: deque[int] = deque(range(num_blocks))
         self.used_block_ids: set[int] = set()
 
-    
     @classmethod
     def compute_hash(cls, token_ids: list[int], prefix: int = -1):
         h = xxhash.xxh64()
         if prefix != -1:
-            h.update(prefix.to_bytes(8, "little"))
+            h.update(prefix.to_bytes(8, "little"))                  # little stores the least significant byte first.
         h.update(np.array(token_ids).tobytes())
         return h.intdigest()
 

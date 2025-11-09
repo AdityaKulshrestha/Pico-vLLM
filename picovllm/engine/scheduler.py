@@ -1,7 +1,8 @@
 from collections import deque
 
+from picovllm.config import Config
+from picovllm.engine.block_manager import BlockManager
 from picovllm.engine.sequence import Sequence, SequenceStatus
-
 
 
 class Scheduler:
@@ -23,8 +24,6 @@ class Scheduler:
         """
         Scheduler is the dynamic batcher which batches the request based on the available memory and 
         config (max tokens and max seqs)
-
-
         
         """
         # Prefill

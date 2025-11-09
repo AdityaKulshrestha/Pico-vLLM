@@ -2,6 +2,8 @@ from copy import copy
 from enum import Enum, auto
 from itertools import count
 
+from picovllm.sampling_params import SamplingParams
+
 
 class SequenceStatus(Enum):
     WAITING = auto()
