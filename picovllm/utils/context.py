@@ -1,5 +1,5 @@
 import torch
-from dataclases import dataclass
+from dataclasses import dataclass
 
 
 @dataclass

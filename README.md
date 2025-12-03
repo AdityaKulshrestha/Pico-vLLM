@@ -23,8 +23,8 @@ This repository is created to understand the vLLM inference engine. It has been 
 2. Create the env and install the dependencies
     `uv sync`
 3. Install torch
-    `uv pip install torch==2.5.0 --torch-backend=cpu`
-    `uv pip install intel-extension-for-pytorch`
+    `uv pip install torch==2.6.0 --torch-backend=cpu`
+    `uv pip install intel-extension-for-pytorch==2.6.0`
 4. Activate the environment
     `source .venv\bin\activate`
 5. Download the model
@@ -49,6 +49,13 @@ This repository is created to understand the vLLM inference engine. It has been 
 1. https://flashinfer.ai/
 2. https://zhuanlan.zhihu.com/p/17186885141
 3. https://www.youtube.com/watch?v=UUIKnca31Ao&list=PL_lsbAsL_o2DsybRNydPRukT4LLkl2buy&index=3
+
+
+## Step by step learning
+
+1. Learn about torch distributed APIs
+    - https://docs.pytorch.org/tutorials/beginner/dist_overview.html
+    
 
 
 ### Torch Compile Resources
