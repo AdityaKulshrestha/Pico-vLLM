@@ -53,12 +53,15 @@ class BlockManager:
         self.used_block_ids.remove(block_id)
         self.free_block_ids.append(block_id)
 
-    def can_allocate(self, seq: Sequence):
+    def can_allocate(self, seq: Sequence) -> bool:
+        return len(self.free_block_ids) >= seq.num_blocks
+
+    def allocate(self, seq: Sequence):
         assert not seq.block_table
         h = -1
         cache_miss = False
         for i in range(seq.num_blocks):
-            token_ids = seq.get_block_token_ids(i, self.block_size)
+            token_ids = seq.block(i)
             h = self.compute_hash(token_ids, h) if len(token_ids) == self.block_size else -1
             block_id = self.hash_to_block_id.get(h, -1)
             if block_id == -1 or self.blocks[block_id].token_ids != token_ids:

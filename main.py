@@ -5,6 +5,9 @@ from transformers import AutoTokenizer
 
 def main():
     path = os.path.expanduser("~/huggingface/Qwen3-0.6B")
+    if not os.path.exists(path):
+        print("Model doesn't exists, download the model to run the vLLM")
+        # Terminate the program
     tokenizer = AutoTokenizer.from_pretrained(path)
     llm = LLM(path, enforce_eager=True, tensor_parallel_size=1)
 

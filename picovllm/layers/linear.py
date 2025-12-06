@@ -22,7 +22,7 @@ class LinearBase(nn.Module):
         self.tp_dim = tp_dim
         self.tp_rank = dist.get_rank()
         self.tp_size = dist.get_world_size()
-        self.weight = nn.Parameter(torch.emtpy(output_size, input_size))
+        self.weight = nn.Parameter(torch.empty(output_size, input_size))
         self.weight.weight_loader = self.weight_loader
         if bias:
             self.bias = nn.Paramter(torch.empty(output_size))

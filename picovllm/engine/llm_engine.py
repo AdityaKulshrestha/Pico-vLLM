@@ -23,21 +23,21 @@ class LLMEngine:
         self.ps = []
         self.events = []
 
-        ctx = mp.get_context("spawn")           # Create context for handling tensor parallelism. Creates multiple event loop for each GPU for TP.
+        ctx = mp.get_context("spawn")                                                   # Create context for handling tensor parallelism. Creates multiple event loop for each GPU for TP.
         for i in range(1, config.tensor_parallel_size):
-            event = ctx.Event()            # Creates event loop for each tensor parallelism   
+            event = ctx.Event()                                                         # Creates event loop for each tensor parallelism   
             process = ctx.Process(target=ModelRunner, args=(config, i, event))          # ModelRunner is the actual executeable class which executes the input requests on hardware
             process.start()
-            self.ps.append(process)     # For tracking and IPC (inter process) synchronization, later termination
-            self.events.append(event)   # For signalling between the main and worker process
+            self.ps.append(process)                                                     # For tracking and IPC (inter process) synchronization, later termination
+            self.events.append(event)                                                   # For signalling between the main and worker process
 
-        self.model_runner = ModelRunner(config, 0, self.events)         ## TODO:    ; Instantiates the ModelRunner for main process
+        self.model_runner = ModelRunner(config, 0, self.events)                         ## TODO: Instantiates the ModelRunner for main process
         
         # Configuring tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(config.model, use_fase=True)
         config.eos = self.tokenizer.eos_token_id
-        self.scheduler = Scheduler(config)          # Responsible for scheduling the input requests and preprocessing
-        atexit.register(self.exit)                  # Registers the self.exit method to be called automatically when the program exits. Ensure proper cleanup of resources and subprocesses; refer to the exit method in the class.
+        self.scheduler = Scheduler(config)                                              # Responsible for scheduling the input requests and preprocessing
+        atexit.register(self.exit)                                                      # Registers the self.exit method to be called automatically when the program exits. Ensure proper cleanup of resources and subprocesses; refer to the exit method in the class.
 
     ## TODO: ModelRunner and Scheduler
 
@@ -59,7 +59,7 @@ class LLMEngine:
 
 
     def step(self):
-        seqs, is_prefill = self.scheduler = self.scheduler.schedule()
+        seqs, is_prefill = self.scheduler.schedule()
         token_ids = self.model_runner.call("run", seqs, is_prefill)
         self.scheduler.postprocess(seqs, token_ids)
         outputs = [(seq.seq_id, seq.completion_token_ids) for seq in seqs if seq.is_finished]

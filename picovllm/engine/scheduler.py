@@ -8,11 +8,11 @@ from picovllm.engine.sequence import Sequence, SequenceStatus
 class Scheduler:
     def __init__(self, config: Config):
         self.max_num_seqs = config.max_num_seqs                                 # Maximum number of requests to be handled at a time
-        self.max_num_batches_tokens = config.max_num_batched_tokens
+        self.max_num_batched_tokens = config.max_num_batched_tokens
         self.eos = config.eos
         self.block_manager = BlockManager(config.num_kvcache_blocks, config.kvcache_block_size)
         self.waiting: deque[Sequence] = deque()
-        self.waiting: deque[Sequence] = deque()
+        self.running: deque[Sequence] = deque()
 
     def is_finished(self):
         return not self.waiting and not self.running

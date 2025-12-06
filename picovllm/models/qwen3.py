@@ -137,7 +137,7 @@ class Qwen3DecoderLayer(nn.Module):
             hidden_act=config.hidden_act
         )
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_nrom_eps)
+        self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
     
     def forward(
@@ -177,7 +177,7 @@ class Qwen3Model(nn.Module):
         hidden_states = self.embed_tokens(input_ids)
         residual = None
         for layer in self.layers:
-            hidden_states, residual = layer(positions, hidden_states)
+            hidden_states, residual = layer(positions, hidden_states, residual)
         hidden_states, _ = self.norm(hidden_states, residual)
         return hidden_states
     
@@ -206,7 +206,7 @@ class Qwen3ForCausalLM(nn.Module):
         input_ids: torch.Tensor,
         positions: torch.Tensor,
     ) -> torch.Tensor:
-        return self.model(input_ids.positions)
+        return self.model(input_ids, positions)
     
     def compute_logits(
         self,
