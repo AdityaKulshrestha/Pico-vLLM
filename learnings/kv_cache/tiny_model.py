@@ -40,9 +40,9 @@ def main():
     print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 
     # With KV cache
-    print("\nWith KV Cache\n")
-    outputs = model.generate(input_ids, max_new_tokens=50, use_cache=True)
-    print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+    # print("\nWith KV Cache\n")
+    # outputs = model.generate(input_ids, max_new_tokens=50, use_cache=True)
+    # print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 
 
 

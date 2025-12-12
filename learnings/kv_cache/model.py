@@ -240,54 +240,15 @@ class SmolLM(nn.Module):
         # Converting embedding to logits
         x = x @ self.lm_head.weight.T
         return x
-    
-
-    def forward_kv_cache(self, x: torch.Tensor, start_pos: int = 0, kv_cache = None):
-        x = self.embed_tokens(x)
-        
-        # Fetching the rotary embeddings for the sequence length
-        cos = self.rotary_emb.freqs_cos[start_pos: start_pos + x.shape[1], :]
-        sin = self.rotary_emb.freqs_sin[start_pos: start_pos + x.shape[1], :]
-        
-        new_kv_cache = []
-        for i, layer in enumerate(self.layers):
-            layer_cache = kv_cache[i] if kv_cache is not None else None
-            x = layer(x, cos, sin)
-        x = self.norm(x)
-
-        # Converting embedding to logits
-        x = x @ self.lm_head.weight.T
-        return x
 
 
     # generate tokens
     @torch.inference_mode()
-    def generate(self, input_ids: torch.Tensor, max_new_tokens: int, use_cache: bool = False):
-        if use_cache:
-            kv_cache = None
-
-            for _ in range(max_new_tokens):
-
-                # Slicing logic for Query vector
-                if kv_cache is None:
-                    x_inputs = input_ids
-                    start_pos = 0
-                else:
-                    x_inputs = input_ids[:, -1:]
-                    start_pos = input_ids.shape[1] - 1
-                
-                logits, kv_cache = self.forward(x_inputs, start_pos=start_pos, kv_cache=kv_cache)
-
-                next_token_logits = logits[:, -1, :]
-                new_token_id = torch.argmax(next_token_logits, dim=-1, keepdim=True)
-
-                input_ids = torch.cat([input_ids, new_token_id])
-
-        else: 
-            for _ in range(max_new_tokens):
-                outputs = self.forward(input_ids)
-                new_token_id = torch.argmax(outputs[:, -1, :], dim=-1, keepdim=True)
-                input_ids = torch.cat([input_ids, new_token_id], dim=-1)
+    def generate(self, input_ids: torch.Tensor, max_new_tokens: int):
+        for _ in range(max_new_tokens):
+            outputs = self.forward(input_ids)
+            new_token_id = torch.argmax(outputs[:, -1, :], dim=-1, keepdim=True)
+            input_ids = torch.cat([input_ids, new_token_id], dim=-1)
 
         return input_ids
 
