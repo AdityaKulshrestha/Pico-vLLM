@@ -8,11 +8,11 @@ dependencies = [
     "cmake>=4.1.2",
     "tqdm>=4.67.1",
     "transformers==4.55.4",
-    "triton>=3.5.0",
     "xxhash>=3.6.0",
     "torch==2.8.0",
     "intel_extension_for_pytorch==2.8.0",
     "setuptools>=80.9.0",
+    "viztracer>=1.1.1",
 ]
 
 

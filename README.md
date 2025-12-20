@@ -33,6 +33,11 @@ This repository is created to understand the vLLM inference engine. It has been 
     `python main.py`
 
 
+
+NOTE:
+1. Pin the torch cores: torch.set_num_threads(N)
+
+
 ## References 
 1. https://www.aleksagordic.com/blog/vllm#cpt2
 2. https://code2tutorial.com/tutorial/6249f206-9aa2-400f-a854-c19e7e335491/index.md

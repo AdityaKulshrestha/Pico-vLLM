@@ -39,8 +39,6 @@ class LLMEngine:
         self.scheduler = Scheduler(config)                                              # Responsible for scheduling the input requests and preprocessing
         atexit.register(self.exit)                                                      # Registers the self.exit method to be called automatically when the program exits. Ensure proper cleanup of resources and subprocesses; refer to the exit method in the class.
 
-    ## TODO: ModelRunner and Scheduler
-
     def exit(self):
         """
         Exits the main and children process

@@ -118,10 +118,13 @@ class ModelRunner:
         config.num_kvcache_blocks = int(total * config.cpu_memory_utilization - used) // block_bytes
 
         assert config.num_kvcache_blocks > 0
+        # Allocating space for the KV cache
+        # 2 - K & V block, each layer having its own K & V cache - num_hidden_layers, for each layers blocked kv_cache -> num_kv_cache then followed by fix block_size then the heads and the actual dimension
         self.kv_cache = torch.empty(2, hf_config.num_hidden_layers, config.num_kvcache_blocks, self.block_size, num_kv_heads, hf_config.head_dim)
 
         layer_id = 0
         
+        # Assigning the allocated kv_cache to each transformer layer, the attention module already have the k_cache and v_cache attributes.
         for module in self.model.modules():
             if hasattr(module, "k_cache") and hasattr(module, "v_cache"):
                 module.k_cache = self.kv_cache[0, layer_id]
@@ -145,9 +148,9 @@ class ModelRunner:
         block_tables = None
         for seq in seqs:
             seqlen = len(seq)
-            input_ids.extend(seq[seq.num_cached_tokens:])
+            input_ids.extend(seq[seq.num_cached_tokens:])       # Fetches the cached tokens
             positions.extend(list(range(seq.num_cached_tokens, seqlen)))
-            seqlen_q = seqlen - seq.num_cached_tokens
+            seqlen_q = seqlen - seq.num_cached_tokens           # Calculates the length of the new tokens to be prefetched
             seqlen_k = seqlen
             cu_seqlens_q.append(cu_seqlens_q[-1] + seqlen_q)
             cu_seqlens_k.append(cu_seqlens_k[-1] + seqlen_k)
@@ -156,7 +159,7 @@ class ModelRunner:
             if not seq.block_table:
                 continue
 
-            for i in range(seq.num_cached_blocks, seq.num_blocks):
+            for i in range(seq.num_cached_blocks, seq.num_blocks):      # Arranges the slot for the new tokens, seq.num_blocks - calculates the number of blocks required for the entire sequence
                 start = seq.block_table[i] * self.block_size
                 if i != seq.num_blocks - 1:
                     end = start + self.block_size

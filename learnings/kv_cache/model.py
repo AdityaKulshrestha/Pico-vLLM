@@ -120,7 +120,7 @@ class SmolLMAttention(nn.Module):
         self.cache_k = None
         self.cache_v = None
 
-    def forward(self, x: torch.Tensor, freqs_cos: torch.Tensor, freqs_sin: torch.Tensor, mask: torch.Tensor = None, kv_cache=None):
+    def forward(self, x: torch.Tensor, freqs_cos: torch.Tensor, freqs_sin: torch.Tensor, kv_cache=None, cache_indices=None):
         bsz, seqlen, _ = x.shape
 
 
@@ -136,22 +136,35 @@ class SmolLMAttention(nn.Module):
         xk = xk.transpose(1, 2)
         xv = xv.transpose(1, 2)
 
+        if kv_cache is not None:
+            # Update cache in-place (Write)
+            # We don't need the return values for 'keys', we read from cache next
+            kv_cache.update(xk, xv, cache_indices)
+
+            # Read back FULL history up to current point for attention
+            # We slice [0 : current_max_index + 1]
+            valid_len = cache_indices[-1] + 1
+            keys = kv_cache.k_cache[:, :, :valid_len, :]  # [bs, n_kv_heads, valid_len, head_dim]
+            values = kv_cache.v_cache[:, :, :valid_len, :]  # [bs, n_kv_heads, valid_len, head_dim]
+        else:
+            keys = xk
+            values = xv
+
         # GQA -> Expand K, V to match n_heads
         if self.n_kv_heads != self.n_heads:
-            xk = xk.repeat_interleave(self.n_heads // self.n_kv_heads, dim=1)
-            xv = xv.repeat_interleave(self.n_heads // self.n_kv_heads, dim=1)
+            keys = keys.repeat_interleave(self.n_heads // self.n_kv_heads, dim=1)
+            values = values.repeat_interleave(self.n_heads // self.n_kv_heads, dim=1)
 
-        scores = torch.matmul(xq, xk.transpose(2, 3)) / (self.head_dim ** 0.5)
+        # 5. Attention Scores 
+        scores = torch.matmul(xq, keys.transpose(2, 3)) / (self.head_dim ** 0.5)
 
-        # Skipping the kv_cache implementation for now  
-
-        # Apply the masking for causal attention
-        if mask is None:
+        # 6. Masking: Apply the masking for causal attention
+        if seqlen > 1:
             mask = torch.triu(torch.full((seqlen, seqlen), float('-inf')), diagonal=1).unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, seq_len]
             # Replace 0s with -inf and 1s with 0
             scores = scores + mask 
         
-        attn_output = torch.matmul(torch.softmax(scores, dim=-1), xv)
+        attn_output = torch.matmul(torch.softmax(scores, dim=-1), values)
         attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, seqlen, self.n_heads * self.head_dim)
         attn_output = self.o_proj(attn_output)
         return attn_output
@@ -208,10 +221,43 @@ class SmolLMDecoderLayer(nn.Module):
         self.input_layernorm = SmolLMRMSNorm(config.d_model, config.eps)
         self.post_attention_layernorm = SmolLMRMSNorm(config.d_model, config.eps)
 
-    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
-        x = self.self_attn(self.input_layernorm(x), cos, sin) + x
+    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, kv_cache=None, cache_indices=None):
+        x = self.self_attn(self.input_layernorm(x), cos, sin, kv_cache, cache_indices) + x
         x = self.mlp(self.post_attention_layernorm(x)) + x
         return x
+
+
+class KVCache(nn.Module):
+    def __init__(self, max_batch_size: int, max_seq_len: int, n_kv_heads: int, head_dim: int, dtype=torch.float32):
+        super().__init__()
+        
+        # 1. Pre-allocate the giant empty buffer
+        # Shape: [Batch, KV_Heads, Max_Seq_Len, Head_Dim]
+        cache_shape = (max_batch_size, n_kv_heads, max_seq_len, head_dim)
+
+        # We use register_buffer to ensure that these tensors are moved to the correct device with the model
+        self.register_buffer("k_cache", torch.zeros(cache_shape, dtype=dtype), persistent=False)
+        self.register_buffer("v_cache", torch.zeros(cache_shape, dtype=dtype), persistent=False)
+
+    
+    def update(self, k_new, v_new, cache_position):
+        """
+        Update the KV cache at the specified position with new keys and values
+        k_new, v_new: [Batch, Heads, Seq_Len, Dim]
+        cache_position: [Seq_Len]
+        """
+        # 2. WRITE In-Place (No memory allocation, just copy)
+        # We write to the specific 'cache-position' slice
+        # If prefill, seq_len > 1, If decode - seq_len = 1
+
+        # We use index_copy_ or direct assignment 
+        # Since cache_indices is usually contiguous, direct assignment is faster.
+
+
+        self.k_cache[:, :, cache_position, :] = k_new
+        self.v_cache[:, :, cache_position, :] = v_new
+
+        return self.k_cache, self.v_cache
 
 
 class SmolLM(nn.Module):
@@ -221,20 +267,34 @@ class SmolLM(nn.Module):
         self.layers = nn.ModuleList([SmolLMDecoderLayer(config) for _ in range(config.num_layers)])
         self.norm = SmolLMRMSNorm(config.d_model)
         self.rotary_emb = SmolLMRotaryEmbedding(config)
+        self.config = config
         # self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
         # Weight tie
         # self.lm_head = self.embedding.T
         self.lm_head = self.embed_tokens
 
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, cache_indices=None, kv_cache=None, mask=None):
         x = self.embed_tokens(x)
         
         # Fetching the rotary embeddings for the sequence length
-        cos = self.rotary_emb.freqs_cos[: x.shape[1], :]
-        sin = self.rotary_emb.freqs_sin[: x.shape[1], :]
-        for layer in self.layers:
-            x = layer(x, cos, sin)
+        if kv_cache: 
+            cos = self.rotary_emb.freqs_cos[cache_indices]
+            sin = self.rotary_emb.freqs_sin[cache_indices]
+        else:
+            seq_len = x.shape[1]
+            cos = self.rotary_emb.freqs_cos[:seq_len]
+            sin = self.rotary_emb.freqs_sin[:seq_len]
+
+        for i, layer in enumerate(self.layers):
+            layer_cache = kv_cache[i] if kv_cache is not None else None
+            x = layer(
+                x, 
+                cos, 
+                sin,
+                kv_cache=layer_cache,
+                cache_indices=cache_indices
+                )
         x = self.norm(x)
 
         # Converting embedding to logits
@@ -244,11 +304,42 @@ class SmolLM(nn.Module):
 
     # generate tokens
     @torch.inference_mode()
-    def generate(self, input_ids: torch.Tensor, max_new_tokens: int):
-        for _ in range(max_new_tokens):
-            outputs = self.forward(input_ids)
-            new_token_id = torch.argmax(outputs[:, -1, :], dim=-1, keepdim=True)
-            input_ids = torch.cat([input_ids, new_token_id], dim=-1)
+    def generate(self, input_ids: torch.Tensor, max_new_tokens: int, use_cache: bool = False):
+        if use_cache: 
+            bsz, seq_len = input_ids.shape
+            total_len = seq_len + max_new_tokens
+            
+            # 1. Initialize the KV cache 
+            kv_caches = [
+                KVCache(max_batch_size=bsz, max_seq_len=128, n_kv_heads=self.config.n_kv_heads, head_dim=self.config.d_model // self.config.n_heads)
+                for _ in range(self.config.num_layers)
+            ]
+
+            # 2. Prefill Phase (Full prompt)
+            cache_indices = torch.arange(seq_len)
+
+            outputs = self.forward(input_ids, kv_cache=kv_caches, cache_indices=cache_indices)
+
+            # Sample the first new token
+            new_token = torch.argmax(outputs[:, -1, :], dim=-1, keepdim=True)
+            input_ids = torch.cat([input_ids, new_token], dim=-1)
+
+            for i in range(max_new_tokens - 1):
+                # Position now: seq_len + i
+                # Step index: [4], then [5] then [6] ...
+                cache_indices = torch.tensor([seq_len + i])
+
+
+                outputs = self.forward(input_ids[:, -1:], kv_cache=kv_caches, cache_indices=cache_indices)
+
+                new_token = torch.argmax(outputs[:, -1, :], dim=-1, keepdim=True)
+                input_ids = torch.cat([input_ids, new_token], dim=-1)
+
+        else:
+            for _ in range(max_new_tokens):
+                outputs = self.forward(input_ids)
+                new_token_id = torch.argmax(outputs[:, -1, :], dim=-1, keepdim=True)
+                input_ids = torch.cat([input_ids, new_token_id], dim=-1)
 
         return input_ids
 

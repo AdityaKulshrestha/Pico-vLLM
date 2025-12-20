@@ -32,20 +32,21 @@ def main():
     text = "Once upon a time"
     input_ids = tokenizer(text, return_tensors="pt").input_ids
     print("Token Shape: ", input_ids.shape)
-    print("*"*30)
-
-    # Without KV cache
     print("\n")
-    outputs = model.generate(input_ids, max_new_tokens=50)
-    print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+    print("*"*80)
+    print("Without KV Cache\n")
+    # Without KV cache
+    st = time.perf_counter()
+    # outputs = model.generate(input_ids, max_new_tokens=50)
+    # print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+    # print("Time: ", time.perf_counter() - st)
 
     # With KV cache
-    # print("\nWith KV Cache\n")
-    # outputs = model.generate(input_ids, max_new_tokens=50, use_cache=True)
-    # print(tokenizer.decode(outputs[0], skip_special_tokens=True))
-
-
-
+    # print("*"*80)
+    print("With KV Cache\n")
+    outputs = model.generate(input_ids, max_new_tokens=50, use_cache=True)
+    print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+    print("Time: ", time.perf_counter() - st)
 
 if __name__ == "__main__":
     main()
