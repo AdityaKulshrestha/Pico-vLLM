@@ -69,3 +69,7 @@ NOTE:
 4. https://blog.ezyang.com/2025/08/state-of-torch-compile-august-2025/
 5. https://youtu.be/zn0Pm2Pv3O0?si=HYs5Ia7BTm20fS7d
 6. https://youtu.be/CVVbFlnP0m0?si=uPvgfziJxe9BUpqw
+
+
+### Performance
+1. https://kipp.ly/transformer-inference-arithmetic/
